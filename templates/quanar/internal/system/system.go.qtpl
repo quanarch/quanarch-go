@@ -1,0 +1,25 @@
+// Package system holds the quanar's own routes: its health and the state of its quans.
+package system
+
+import (
+	"encoding/json"
+	"net/http"
+	"time"
+
+	"[[ .Name ]]/internal/quans"
+)
+
+// Routes returns /health and /quans.
+func Routes(service *quans.Service) *http.ServeMux {
+	started := time.Now()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok", "uptime": int(time.Since(started).Seconds())})
+	})
+	mux.HandleFunc("GET /quans", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(service.Statuses())
+	})
+	return mux
+}

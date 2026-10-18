@@ -1,0 +1,22 @@
+[[ if .Quas -]]
+package [[ lower (pascal .Name) ]]
+
+import (
+	"context"
+
+	[[ lower (pascal (index .Quas 0).Name) ]] "[[ (index .Quas 0).Name ]]"
+	"[[ (index .Quas 0).Name ]]/db"
+)
+
+// The quan's rules. It stores through the qua; the quanar does the work.
+
+func list(ctx context.Context) ([][[ lower (pascal (index .Quas 0).Name) ]].Row, error) {
+	return db.List(ctx, table)
+}
+
+func create(ctx context.Context, item map[string]any) ([[ lower (pascal (index .Quas 0).Name) ]].Row, error) {
+	return db.Create(ctx, table, item)
+}
+[[- else -]]
+package [[ lower (pascal .Name) ]]
+[[- end ]]

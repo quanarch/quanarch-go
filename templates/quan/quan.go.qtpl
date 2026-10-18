@@ -1,0 +1,19 @@
+[[ if .Quas -]]
+// Package [[ lower (pascal .Name) ]] is a quan. It has no main and serves nothing itself: a quanar builds it into
+// its own program, plugs the qua in and calls Mount, where the quan asks it to listen.
+package [[ lower (pascal .Name) ]]
+
+import "[[ (index .Quas 0).Name ]]/api"
+
+// Mount asks the quanar to listen for the quan.
+func Mount() {
+	api.Get(Home, listItems)
+	api.Post(Home, createItem)
+}
+[[- else -]]
+// Package [[ lower (pascal .Name) ]] is a quan. No qua yet: a quan reaches the quanar only through a qua. See README.md.
+package [[ lower (pascal .Name) ]]
+
+// Mount asks the quanar to listen for the quan; with a qua it calls api.Get and api.Post.
+func Mount() {}
+[[- end ]]

@@ -1,0 +1,7 @@
+// Package [[ lower (pascal .Name) ]] is the contract between a quanar and its quans. It holds no
+// logic: the quanar plugs its core in with Init, and the api and db packages forward
+// every call to it.
+//
+//	api.Get("/items", listItems)                                  // quanar, listen to GET /items for me
+//	row, err := db.Create(ctx, "items", map[string]any{"name": n}) // quanar, store this row
+package [[ lower (pascal .Name) ]]

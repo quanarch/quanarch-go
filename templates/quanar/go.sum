@@ -1,0 +1,6 @@
+github.com/fsnotify/fsnotify v1.10.1 h1:b0/UzAf9yR5rhf3RPm9gf3ehBPpf0oZKIjtpKrx59Ho=
+github.com/fsnotify/fsnotify v1.10.1/go.mod h1:TLheqan6HD6GBK6PrDWyDPBaEV8LspOxvPSjC+bVfgo=
+github.com/landlock-lsm/go-landlock v0.10.1 h1:MkvuYeTgGRpOnROAO9V2gV3C5lctFr6O0b9wnPWcQWk=
+github.com/landlock-lsm/go-landlock v0.10.1/go.mod h1:mn5GSi81Jf7yMs5WSi+SUi4sUeNLUGVdbT4Id6wXNQw=
+golang.org/x/sys v0.40.0 h1:DBZZqJ2Rkml6QMQsZywtnjnnGvHza6BTfYFWY9kjEWQ=
+golang.org/x/sys v0.40.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=

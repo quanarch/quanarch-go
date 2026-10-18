@@ -1,0 +1,86 @@
+package host
+
+import (
+	"context"
+	"encoding/json"
+	// The quas this host can plug. Lines marked "qu:" are where qu adds one.
+[[- range .Quas ]]
+	[[ lower (pascal .Name) ]] "[[ .Name ]]"
+[[- end ]]
+	// qu:qua-imports
+)
+
+// listens and handlers are filled as the quan's Mount asks the quanar to listen.
+var (
+	listens  []listen
+	handlers []func(context.Context, json.RawMessage) (any, error)
+)
+
+// api is a qua's ApiManager, as the host implements it for that qua's types: keep the handler,
+// tell the quanar the path.
+type api[Req, Res any, H ~func(context.Context, Req) (Res, error)] struct{}
+
+func (api[Req, Res, H]) listen(method, path string, h H) {
+	listens = append(listens, listen{Method: method, Path: path})
+	handlers = append(handlers, func(ctx context.Context, raw json.RawMessage) (any, error) {
+		var req Req
+		if err := json.Unmarshal(raw, &req); err != nil {
+			return nil, err
+		}
+		return h(ctx, req)
+	})
+}
+
+func (a api[Req, Res, H]) Get(path string, h H)    { a.listen("GET", path, h) }
+func (a api[Req, Res, H]) Post(path string, h H)   { a.listen("POST", path, h) }
+func (a api[Req, Res, H]) Put(path string, h H)    { a.listen("PUT", path, h) }
+func (a api[Req, Res, H]) Patch(path string, h H)  { a.listen("PATCH", path, h) }
+func (a api[Req, Res, H]) Delete(path string, h H) { a.listen("DELETE", path, h) }
+
+// store is a qua's DbManager, as the host implements it for that qua's rows: every call goes
+// to the quanar.
+type store[Row ~map[string]any] struct{ qua string }
+
+func (s store[Row]) Create(ctx context.Context, table string, data map[string]any) (Row, error) {
+	var row Row
+	return row, call(ctx, s.qua+":db.create", &row, table, data)
+}
+
+func (s store[Row]) List(ctx context.Context, table string) ([]Row, error) {
+	var rows []Row
+	return rows, call(ctx, s.qua+":db.list", &rows, table)
+}
+
+func (s store[Row]) Get(ctx context.Context, table, id string) (Row, error) {
+	var row Row
+	return row, call(ctx, s.qua+":db.get", &row, table, id)
+}
+
+func (s store[Row]) Update(ctx context.Context, table, id string, data map[string]any) (Row, error) {
+	var row Row
+	return row, call(ctx, s.qua+":db.update", &row, table, id, data)
+}
+
+func (s store[Row]) Remove(ctx context.Context, table, id string) (bool, error) {
+	var removed bool
+	return removed, call(ctx, s.qua+":db.remove", &removed, table, id)
+}
+
+// core is a qua's QuanarCore, built from the two above.
+type core[A, D any] struct {
+	api A
+	db  D
+}
+
+func (c core[A, D]) Api() A { return c.api }
+func (c core[A, D]) Db() D  { return c.db }
+
+// plugs gives each qua the host can plug its core. Lines marked "qu:" are where qu adds one.
+var plugs = map[string]func() error{
+[[- range .Quas ]][[ $p := lower (pascal .Name) ]]
+	"[[ .Name ]]": func() error {
+		return [[ $p ]].Init(core[[ "[" ]][[ $p ]].ApiManager, [[ $p ]].DbManager]{api[[ "[" ]][[ $p ]].Request, [[ $p ]].Response, [[ $p ]].Handler]{}, store[[ "[" ]][[ $p ]].Row]{"[[ .Name ]]"}})
+	},
+[[- end ]]
+	// qu:qua-host
+}

@@ -1,0 +1,36 @@
+stack go
+version 0.1.0
+title "Go"
+
+template project templates/project
+template qua templates/qua
+template quanar templates/quanar {
+	run go mod download
+	port 3000
+	start go run .
+}
+template quan templates/quan {
+	port 4001
+	start go tool quan-build --watch
+}
+template qmock templates/quanar {
+	run go work use .
+	run go mod download
+	port 3001
+	start go run .
+}
+
+
+# A quan added to the project later joins the workspace and is listed in every quanar and qmock,
+# with its event stream and the quas plugged into it.
+on quan run go work use [[ (index .Quans 0).Path ]]
+on quan insert internal/config/config.go "// qu:quan-sources" "{Name: \"[[ .Name ]]\", URL: \"http://localhost:[[ .Port ]]/[[ .Name ]]\", Events: \"http://localhost:[[ .Port ]]/events\", Quas: []string{[[ range $i, $q := .Quas ]][[ if $i ]], [[ end ]]\"[[ $q.Name ]]\"[[ end ]]}},"
+on quan run gofmt -w internal/config/config.go
+
+# A qua a quanar or qmock does not have yet joins the workspace, and the host plugs it with a core.
+on qua run go work use [[ (index .Quas 0).Path ]]
+on qua insert host/quas.go "// qu:qua-imports" "[[ lower (pascal .Name) ]] \"[[ .Name ]]\""
+on qua insert host/quas.go "// qu:qua-host" "\"[[ .Name ]]\": func() error { return [[ lower (pascal .Name) ]].Init(core[[ \"[\" ]][[ lower (pascal .Name) ]].ApiManager, [[ lower (pascal .Name) ]].DbManager]{api[[ \"[\" ]][[ lower (pascal .Name) ]].Request, [[ lower (pascal .Name) ]].Response, [[ lower (pascal .Name) ]].Handler]{}, store[[ \"[\" ]][[ lower (pascal .Name) ]].Row]{\"[[ .Name ]]\"}}) },"
+on qua insert internal/quacore/quacore.go "// qu:qua-cores" "\"[[ .Name ]]\": db,"
+# Inserted lines are written as one; gofmt lays them out the way Go does.
+on qua run gofmt -w host/quas.go internal/quacore/quacore.go

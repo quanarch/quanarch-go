@@ -1,0 +1,259 @@
+// Package process runs one quan in its own process. The quanar starts it through the gate, with
+// an empty environment, and talks to it only through JSON lines.
+package process
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"[[ .Name ]]/gate"
+	"[[ .Name ]]/internal/config"
+	"[[ .Name ]]/internal/quacore"
+	"[[ .Name ]]/internal/wire"
+)
+
+// Listen is one path the quan asked the quanar to listen to.
+type Listen struct {
+	Method string `json:"method"`
+	Path   string `json:"path"`
+}
+
+type message struct {
+	Type       string            `json:"type"`
+	ID         int64             `json:"id,omitempty"`
+	Quas       []string          `json:"quas,omitempty"`
+	Listener   int               `json:"listener,omitempty"`
+	Req        *wire.Request     `json:"req,omitempty"`
+	Res        *wire.Response    `json:"res,omitempty"`
+	Capability string            `json:"capability,omitempty"`
+	Args       []json.RawMessage `json:"args,omitempty"`
+	Value      any               `json:"value,omitempty"`
+	Error      string            `json:"error,omitempty"`
+	Listens    []Listen          `json:"listens,omitempty"`
+}
+
+// ErrStopped means the quan's process is gone.
+var ErrStopped = errors.New("the quan stopped")
+
+// Process is one running quan.
+type Process struct {
+	source   config.QuanSource
+	settings config.Settings
+	log      *slog.Logger
+	caps     map[string]quacore.Capability
+	dir      string
+	cmd      *exec.Cmd
+	stdin    io.WriteCloser
+	writing  sync.Mutex
+	mu       sync.Mutex
+	nextID   int64
+	waiting  map[int64]chan message
+	loaded   chan message
+	exited   chan struct{}
+	// OnExit runs once the process is gone, with its exit error.
+	OnExit func(error)
+}
+
+// Start writes the quan's program to a private folder and runs it through the gate.
+func Start(ctx context.Context, source config.QuanSource, settings config.Settings, program []byte) (*Process, []Listen, error) {
+	dir, err := os.MkdirTemp("", "quan-"+source.Name+"-")
+	if err != nil {
+		return nil, nil, err
+	}
+	path := filepath.Join(dir, source.Name)
+	if err := os.WriteFile(path, program, 0o500); err != nil {
+		os.RemoveAll(dir)
+		return nil, nil, err
+	}
+	self, err := os.Executable()
+	if err != nil {
+		os.RemoveAll(dir)
+		return nil, nil, err
+	}
+	p := &Process{
+		source: source, settings: settings, dir: dir,
+		log:     slog.With("quan", source.Name),
+		caps:    quacore.Plugged(source.Quas),
+		waiting: map[int64]chan message{},
+		loaded:  make(chan message, 1),
+		exited:  make(chan struct{}),
+	}
+	var name string
+	var args []string
+	if gate.Walled {
+		name, args = self, []string{gate.Command, "--memory-mb", fmt.Sprint(settings.QuanMemoryMB), "--call-timeout", settings.CallTimeout.String(), path}
+	} else {
+		name, args = path, []string{"--call-timeout", settings.CallTimeout.String()}
+	}
+	stdout, err := p.launch(name, args)
+	if err != nil {
+		os.RemoveAll(dir)
+		return nil, nil, err
+	}
+	go p.read(stdout)
+
+	p.send(message{Type: "load", Quas: source.Quas})
+	select {
+	case m := <-p.loaded:
+		if m.Type == "load-failed" {
+			p.Kill()
+			return nil, nil, errors.New(m.Error)
+		}
+		// The program runs now; its file is not needed. Where a running program's file cannot be
+		// removed, it goes when the process ends.
+		_ = os.RemoveAll(dir)
+		return p, m.Listens, nil
+	case <-p.exited:
+		return nil, nil, fmt.Errorf("%s exited while loading", source.Name)
+	case <-time.After(settings.LoadTimeout):
+		p.Kill()
+		return nil, nil, fmt.Errorf("%s did not load in %s", source.Name, settings.LoadTimeout)
+	case <-ctx.Done():
+		p.Kill()
+		return nil, nil, ctx.Err()
+	}
+}
+
+// launch starts the quan's program the best way the system allows.
+func (p *Process) launch(name string, args []string) (io.Reader, error) {
+	var err error
+	for i, attr := range sysProcAttrs() {
+		if i > 0 {
+			fellBack(err)
+		}
+		p.cmd = exec.Command(name, args...)
+		p.cmd.Env = []string{} // no secrets, no addresses, nothing of the quanar's
+		p.cmd.Stderr = os.Stderr
+		p.cmd.SysProcAttr = attr
+		if p.stdin, err = p.cmd.StdinPipe(); err != nil {
+			return nil, err
+		}
+		stdout, perr := p.cmd.StdoutPipe()
+		if perr != nil {
+			return nil, perr
+		}
+		if err = p.cmd.Start(); err == nil {
+			return stdout, nil
+		}
+	}
+	return nil, err
+}
+
+// PID is the quan's process id.
+func (p *Process) PID() int { return p.cmd.Process.Pid }
+
+// Request hands a request to the handler the quan registered at listener.
+func (p *Process) Request(ctx context.Context, listener int, req wire.Request) (wire.Response, error) {
+	p.mu.Lock()
+	p.nextID++
+	id := p.nextID
+	answer := make(chan message, 1)
+	p.waiting[id] = answer
+	p.mu.Unlock()
+	defer func() {
+		p.mu.Lock()
+		delete(p.waiting, id)
+		p.mu.Unlock()
+	}()
+
+	p.send(message{Type: "request", ID: id, Listener: listener, Req: &req})
+	select {
+	case m := <-answer:
+		if m.Error != "" {
+			p.log.Error("the quan failed", "error", m.Error)
+			return wire.Response{Status: 500, Body: map[string]string{"error": "The quan failed"}}, nil
+		}
+		return *m.Res, nil
+	case <-p.exited:
+		return wire.Response{Status: 503, Body: map[string]string{"error": p.source.Name + " stopped"}}, nil
+	case <-time.After(p.settings.RequestTimeout):
+		// A quan stuck in a loop is shut down; its process goes, the quanar stays.
+		p.log.Error("no answer, stopping it", "after", p.settings.RequestTimeout)
+		p.Kill()
+		return wire.Response{Status: 504, Body: map[string]string{"error": p.source.Name + " did not answer"}}, nil
+	case <-ctx.Done():
+		return wire.Response{}, ctx.Err()
+	}
+}
+
+// Stop asks the quan to leave, then makes sure its process is gone.
+func (p *Process) Stop() {
+	p.send(message{Type: "unmount"})
+	select {
+	case <-p.exited:
+	case <-time.After(2 * time.Second):
+		p.Kill()
+		<-p.exited
+	}
+}
+
+// Kill ends the quan's process at once.
+func (p *Process) Kill() { _ = p.cmd.Process.Kill() }
+
+func (p *Process) send(m message) {
+	line, err := json.Marshal(m)
+	if err != nil {
+		p.log.Error("cannot send to the quan", "type", m.Type, "error", err)
+		return
+	}
+	p.writing.Lock()
+	defer p.writing.Unlock()
+	_, _ = p.stdin.Write(append(line, '\n'))
+}
+
+func (p *Process) read(stdout io.Reader) {
+	lines := bufio.NewReaderSize(stdout, 1<<20)
+	for {
+		line, err := lines.ReadBytes('\n')
+		if err != nil {
+			break
+		}
+		var m message
+		if json.Unmarshal(line, &m) != nil {
+			continue
+		}
+		switch m.Type {
+		case "loaded", "load-failed":
+			p.loaded <- m
+		case "response":
+			p.mu.Lock()
+			answer := p.waiting[m.ID]
+			p.mu.Unlock()
+			if answer != nil {
+				answer <- m
+			}
+		case "call":
+			go p.answer(m)
+		}
+	}
+	err := p.cmd.Wait()
+	os.RemoveAll(p.dir)
+	close(p.exited)
+	if p.OnExit != nil {
+		p.OnExit(err)
+	}
+}
+
+func (p *Process) answer(m message) {
+	capability, ok := p.caps[m.Capability]
+	if !ok {
+		p.send(message{Type: "result", ID: m.ID, Error: m.Capability + " is not plugged into " + p.source.Name})
+		return
+	}
+	value, err := capability(context.Background(), m.Args)
+	if err != nil {
+		p.send(message{Type: "result", ID: m.ID, Error: err.Error()})
+		return
+	}
+	p.send(message{Type: "result", ID: m.ID, Value: value})
+}

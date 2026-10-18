@@ -1,0 +1,57 @@
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  project:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: quanarch/quanarch
+          ref: dev
+          path: .qu
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: .qu/go.mod
+          cache-dependency-path: .qu/go.sum
+      - name: Create a project from this stack and add a quan with a new qua
+        run: go test -C .qu ./internal/create -run TestStackProject -count=1 -v
+        env:
+          QU_E2E_STACK_DIR: ${{ github.workspace }}
+      - name: Build qu
+        run: go build -C .qu -o "$RUNNER_TEMP/qu" ./cmd/qu
+      - name: Vet every part of a project made by qu
+        working-directory: ${{ runner.temp }}
+        env:
+          QU_STACK_DIR: ${{ github.workspace }}
+        run: |
+          ./qu new project acme --lang go --dir . --qua acme-qua --quanar acme-quanar --quan billing
+          ./qu new quan invoices --lang go --dir acme --new-qua invoices-qua
+          ./qu new qmock qmock --lang go --dir acme --qua acme-qua
+          cd acme
+          for part in packages/acme-qua packages/invoices-qua quanar qmock quans/billing quans/invoices; do
+            (cd $part && go vet ./...)
+          done
+          test -z "$(gofmt -l .)"
+          for quan in billing invoices; do (cd quans/$quan && go tool quan-build); done
+      - name: A quan cannot run without a quanar
+        working-directory: ${{ runner.temp }}/acme/quans/billing
+        run: |
+          if go run . 2> err.txt; then echo "the quan ran by itself"; exit 1; fi
+          grep -q "is not a main package" err.txt
+      - name: The quanar listens for a quan only while the quan is there
+        working-directory: ${{ runner.temp }}/acme
+        run: |
+          (cd quanar && go build -o bin/quanar . && ./bin/quanar) & sleep 3
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3000/billing)" = 404
+          (cd quans/billing && go tool quan-build --watch) & sleep 6
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:3000/billing -H 'Content-Type: application/json' -d '{"text":"hi"}')" = 201
+          curl -sf localhost:3000/billing | grep -q '"text":"hi"'

@@ -1,0 +1,77 @@
+// Package httpapp is the quanar's HTTP server: its own routes, then whatever the quans asked it
+// to listen to.
+package httpapp
+
+import (
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"[[ .Name ]]/internal/listeners"
+	"[[ .Name ]]/internal/wire"
+)
+
+// privateHeaders stay with the quanar: a quan never sees the token.
+var privateHeaders = map[string]bool{"Authorization": true, "Cookie": true}
+
+func writeJSON(w http.ResponseWriter, status int, body any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(body)
+}
+
+func dispatch(w http.ResponseWriter, r *http.Request) {
+	started := time.Now()
+	status := 0
+	defer func() {
+		slog.Info(r.Method+" "+r.URL.Path, "status", status, "ms", time.Since(started).Milliseconds())
+	}()
+	forward, params, ok := listeners.Find(r.Method, r.URL.Path)
+	if !ok {
+		status = http.StatusNotFound
+		writeJSON(w, status, map[string]string{"error": "Nobody listens to " + r.Method + " " + r.URL.Path})
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil || (len(body) > 0 && !json.Valid(body)) {
+		status = http.StatusBadRequest
+		writeJSON(w, status, map[string]string{"error": "The body is not valid JSON"})
+		return
+	}
+	req := wire.Request{Method: r.Method, Path: r.URL.Path, Params: params, Query: map[string]string{}, Headers: map[string]string{}}
+	if len(body) > 0 {
+		req.Body = body // no body travels as null
+	}
+	for k := range r.URL.Query() {
+		req.Query[k] = r.URL.Query().Get(k)
+	}
+	for k := range r.Header {
+		if !privateHeaders[k] {
+			req.Headers[strings.ToLower(k)] = r.Header.Get(k)
+		}
+	}
+	res, err := forward(r.Context(), req)
+	if err != nil {
+		status = http.StatusInternalServerError
+		writeJSON(w, status, map[string]string{"error": "Internal error"})
+		return
+	}
+	status = res.Status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	if res.Body == nil {
+		w.WriteHeader(status)
+		return
+	}
+	writeJSON(w, status, res.Body)
+}
+
+// New returns the handler: system routes first, then the quans.
+func New(system *http.ServeMux) http.Handler {
+	system.HandleFunc("/", dispatch)
+	return system
+}
