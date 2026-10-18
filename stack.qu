@@ -20,6 +20,10 @@ template qmock templates/quanar {
 	start go run .
 }
 
+example advanced examples/advanced {
+	run npm install --prefix web
+	start go run ./tools/cmd/start
+}
 
 # A quan added to the project later joins the workspace and is listed in every quanar and qmock,
 # with its event stream and the quas plugged into it.

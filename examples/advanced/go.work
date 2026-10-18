@@ -1,0 +1,10 @@
+go 1.26.0
+
+use (
+	./packages/shop-qua
+	./quanar
+	./quans/orders
+	./quans/products
+	./quans/users
+	./tools
+)
