@@ -62,6 +62,8 @@ jobs:
         working-directory: ${{ runner.temp }}
         env:
           QU_STACK_DIR: ${{ github.workspace }}
+          # The example needs Go 1.26; setup-go turns fetching it off, a user's Go does not.
+          GOTOOLCHAIN: auto
         run: |
           ./qu new examples shop --lang go --example advanced --dir .
           cd shop && go run ./tools/cmd/check && go run ./tools/cmd/build
