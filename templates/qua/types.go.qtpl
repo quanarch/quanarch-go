@@ -1,0 +1,53 @@
+package [[ lower (pascal .Name) ]]
+
+import (
+	"context"
+	"encoding/json"
+)
+
+// Request is a request as a quan sees it. The quanar's HTTP server never reaches the quan.
+type Request struct {
+	Method  string            `json:"method"`
+	Path    string            `json:"path"`
+	Params  map[string]string `json:"params"`
+	Query   map[string]string `json:"query"`
+	Headers map[string]string `json:"headers"`
+	Body    json.RawMessage   `json:"body"`
+}
+
+// Response is what a handler answers. A zero Status means 200.
+type Response struct {
+	Status int `json:"status,omitempty"`
+	Body   any `json:"body,omitempty"`
+}
+
+// Handler answers one request.
+type Handler func(ctx context.Context, req Request) (Response, error)
+
+// Row is a row as the quanar returns it, with its id.
+type Row map[string]any
+
+// ApiManager is the quanar's listener. Get("/items", h) asks the quanar to listen for the quan.
+type ApiManager interface {
+	Get(path string, h Handler)
+	Post(path string, h Handler)
+	Put(path string, h Handler)
+	Patch(path string, h Handler)
+	Delete(path string, h Handler)
+}
+
+// DbManager is the quanar's database. General methods only: the quan names the table.
+type DbManager interface {
+	Create(ctx context.Context, table string, data map[string]any) (Row, error)
+	List(ctx context.Context, table string) ([]Row, error)
+	// Get returns nil when there is no such row.
+	Get(ctx context.Context, table, id string) (Row, error)
+	Update(ctx context.Context, table, id string, data map[string]any) (Row, error)
+	Remove(ctx context.Context, table, id string) (bool, error)
+}
+
+// QuanarCore is what the quanar implements and plugs in with Init.
+type QuanarCore interface {
+	Api() ApiManager
+	Db() DbManager
+}

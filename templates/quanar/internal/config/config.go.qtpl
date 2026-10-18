@@ -1,0 +1,66 @@
+// Package config holds the quanar's settings and the quans it loads.
+package config
+
+import (
+	"os"
+	"strconv"
+	"time"
+)
+
+// QuanSource says where a quan lives and which quas are plugged into it.
+type QuanSource struct {
+	Name string
+	URL  string
+	// Events is a stream that announces a new build with a change event.
+	Events string
+	// Hash is the SHA-256 of the file. When set, a file that does not match never runs.
+	Hash string
+	Quas []string
+}
+
+// Settings of the quanar.
+type Settings struct {
+	Port           int
+	Reconnect      time.Duration
+	FetchTimeout   time.Duration
+	LoadTimeout    time.Duration
+	RequestTimeout time.Duration
+	// CallTimeout is how long a quan waits for the quanar to answer one of its calls.
+	CallTimeout  time.Duration
+	QuanMemoryMB int
+	QuanSources  []QuanSource
+}
+
+// Load reads the settings from the environment.
+func Load() Settings {
+	return Settings{
+		Port:           envInt("PORT", [[ or .Port 3000 ]]),
+		Reconnect:      envSeconds("RECONNECT_SECONDS", 2),
+		FetchTimeout:   3 * time.Second,
+		LoadTimeout:    5 * time.Second,
+		RequestTimeout: envSeconds("REQUEST_TIMEOUT_SECONDS", 10),
+		CallTimeout:    envSeconds("CALL_TIMEOUT_SECONDS", 5),
+		QuanMemoryMB:   256,
+		// Lines marked "qu:" are where qu adds a quan.
+		QuanSources: []QuanSource{
+[[- range .Quans ]]
+			{Name: "[[ .Name ]]", URL: "http://localhost:[[ .Port ]]/[[ .Name ]]", Events: "http://localhost:[[ .Port ]]/events", Quas: []string{[[ range $i, $q := .Quas ]][[ if $i ]], [[ end ]]"[[ $q.Name ]]"[[ end ]]}},
+[[- end ]]
+			// qu:quan-sources
+		},
+	}
+}
+
+func envInt(name string, fallback int) int {
+	if v, err := strconv.Atoi(os.Getenv(name)); err == nil {
+		return v
+	}
+	return fallback
+}
+
+func envSeconds(name string, fallback float64) time.Duration {
+	if v, err := strconv.ParseFloat(os.Getenv(name), 64); err == nil {
+		fallback = v
+	}
+	return time.Duration(fallback * float64(time.Second))
+}

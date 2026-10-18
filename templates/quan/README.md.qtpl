@@ -1,0 +1,23 @@
+# [[ .Name ]]
+
+A quan. It cannot run on its own: it has no `main`. A quanar builds it into its own program
+with the quanar's host, runs it in its own process and does its work. Everything it needs
+from the outside comes through its qua.
+[[ if not .Quas ]]
+> **No qua yet.** Add a qua to the project's `go.work`, and use its `api` and `db` in `Mount`.
+[[ end ]]
+- `quan.go`: `Mount` asks the quanar to listen: `api.Get("/[[ .Name ]]", …)`, `api.Post("/[[ .Name ]]", …)`.
+  Every path starts with the quan's name.
+- `handlers.go` take a request and return a response; they only call services.
+- `services.go` hold the quan's rules and use the qua's `db`, naming the table themselves.
+
+```sh
+go tool quan-build --watch    # builds, serves the program on port [[ .Port ]] and announces each new build at /events
+```
+
+`quan-build` is the quanar's tool, found through the project's `go.work`. It links the quanar's
+host, which holds `main`, with this package. The quanar follows `/events`: it loads the quan
+when the stream opens, reloads it on every new build and unmounts it when the stream closes.
+
+If the workspace holds more than one quanar, name the one to build with:
+`go tool <quanar>/cmd/quan-build --watch`.

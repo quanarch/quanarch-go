@@ -1,0 +1,96 @@
+// Package listeners is the quanar's listener table: quans ask it, through the qua, to listen to
+// a method and a path. Paths may hold parameters: /notes/{id}.
+package listeners
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+
+	"[[ .Name ]]/internal/wire"
+)
+
+// Forward hands a request to the quan that listens.
+type Forward func(ctx context.Context, req wire.Request) (wire.Response, error)
+
+type listener struct {
+	owner, method, path string
+	segments            []string
+	forward             Forward
+}
+
+var (
+	mu   sync.RWMutex
+	list []listener
+)
+
+// Normalize turns "notes" or "/notes/" into "/notes".
+func Normalize(path string) string { return "/" + strings.Trim(path, "/") }
+
+// Listen opens a path for owner. Paths start with the owner's name.
+func Listen(owner, method, path string, forward Forward) error {
+	path = Normalize(path)
+	if path != "/"+owner && !strings.HasPrefix(path, "/"+owner+"/") {
+		return fmt.Errorf("%s may not listen to %s: paths start with /%s", owner, path, owner)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	list = append(list, listener{owner, method, path, strings.Split(path, "/"), forward})
+	return nil
+}
+
+// Forget stops listening to everything a quan asked for.
+func Forget(owner string) {
+	mu.Lock()
+	defer mu.Unlock()
+	kept := list[:0]
+	for _, l := range list {
+		if l.owner != owner {
+			kept = append(kept, l)
+		}
+	}
+	list = kept
+}
+
+// Find returns who listens to method and path, with the path's parameters.
+func Find(method, path string) (Forward, map[string]string, bool) {
+	segments := strings.Split(Normalize(path), "/")
+	mu.RLock()
+	defer mu.RUnlock()
+	for _, l := range list {
+		if l.method != method || len(l.segments) != len(segments) {
+			continue
+		}
+		params := map[string]string{}
+		matched := true
+		for i, s := range l.segments {
+			switch {
+			case strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}"):
+				params[s[1:len(s)-1]] = segments[i]
+			case s != segments[i]:
+				matched = false
+			}
+			if !matched {
+				break
+			}
+		}
+		if matched {
+			return l.forward, params, true
+		}
+	}
+	return nil, nil, false
+}
+
+// Listening lists what owner listens to.
+func Listening(owner string) []string {
+	mu.RLock()
+	defer mu.RUnlock()
+	out := []string{}
+	for _, l := range list {
+		if l.owner == owner {
+			out = append(out, l.method+" "+l.path)
+		}
+	}
+	return out
+}

@@ -1,0 +1,31 @@
+package [[ lower (pascal .Name) ]]
+
+import "errors"
+
+var core QuanarCore
+
+// ErrNotInitialized is what every call returns before the quanar has plugged its core in.
+var ErrNotInitialized = errors.New("[[ .Name ]] is not initialized: the quanar must call Init first")
+
+// Init plugs the quanar's core in. Only the quanar calls it, once, before any quan runs.
+func Init(c QuanarCore) error {
+	if core != nil {
+		return errors.New("[[ .Name ]] is already initialized")
+	}
+	core = c
+	return nil
+}
+
+// Reset takes the core out.
+func Reset() { core = nil }
+
+// IsInitialized reports whether a core is plugged in.
+func IsInitialized() bool { return core != nil }
+
+// Core returns the plugged core, or panics: a quan cannot run before the quanar plugs it in.
+func Core() QuanarCore {
+	if core == nil {
+		panic(ErrNotInitialized)
+	}
+	return core
+}

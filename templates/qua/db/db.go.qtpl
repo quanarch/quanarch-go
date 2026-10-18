@@ -1,0 +1,28 @@
+// Package db holds thin calls: the quan names the table, the quanar's db manager stores.
+package db
+
+import (
+	"context"
+
+	[[ lower (pascal .Name) ]] "[[ .Name ]]"
+)
+
+func Create(ctx context.Context, table string, data map[string]any) ([[ lower (pascal .Name) ]].Row, error) {
+	return [[ lower (pascal .Name) ]].Core().Db().Create(ctx, table, data)
+}
+
+func List(ctx context.Context, table string) ([][[ lower (pascal .Name) ]].Row, error) {
+	return [[ lower (pascal .Name) ]].Core().Db().List(ctx, table)
+}
+
+func Get(ctx context.Context, table, id string) ([[ lower (pascal .Name) ]].Row, error) {
+	return [[ lower (pascal .Name) ]].Core().Db().Get(ctx, table, id)
+}
+
+func Update(ctx context.Context, table, id string, data map[string]any) ([[ lower (pascal .Name) ]].Row, error) {
+	return [[ lower (pascal .Name) ]].Core().Db().Update(ctx, table, id, data)
+}
+
+func Remove(ctx context.Context, table, id string) (bool, error) {
+	return [[ lower (pascal .Name) ]].Core().Db().Remove(ctx, table, id)
+}

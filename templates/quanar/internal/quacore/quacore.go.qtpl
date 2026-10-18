@@ -1,0 +1,104 @@
+// Package quacore is the [[ .Kind ]]'s side of each qua: the work behind every call a quan makes.
+// A quan's process asks for a capability by name ("shop-qua:db.create"); only the quas
+// plugged into that quan can be reached.
+package quacore
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"[[ .Name ]]/internal/store"
+)
+
+// Capability does one call; its arguments arrive as JSON.
+type Capability func(ctx context.Context, args []json.RawMessage) (any, error)
+
+func arg[T any](args []json.RawMessage, i int) (T, error) {
+	var v T
+	if i >= len(args) {
+		return v, fmt.Errorf("missing argument %d", i)
+	}
+	return v, json.Unmarshal(args[i], &v)
+}
+
+func db() map[string]Capability {
+	return map[string]Capability{
+		"db.create": func(ctx context.Context, a []json.RawMessage) (any, error) {
+			table, err := arg[string](a, 0)
+			if err != nil {
+				return nil, err
+			}
+			data, err := arg[map[string]any](a, 1)
+			if err != nil {
+				return nil, err
+			}
+			return store.Create(ctx, table, data)
+		},
+		"db.list": func(ctx context.Context, a []json.RawMessage) (any, error) {
+			table, err := arg[string](a, 0)
+			if err != nil {
+				return nil, err
+			}
+			return store.List(ctx, table)
+		},
+		"db.get": func(ctx context.Context, a []json.RawMessage) (any, error) {
+			table, err := arg[string](a, 0)
+			if err != nil {
+				return nil, err
+			}
+			id, err := arg[string](a, 1)
+			if err != nil {
+				return nil, err
+			}
+			return store.Get(ctx, table, id)
+		},
+		"db.update": func(ctx context.Context, a []json.RawMessage) (any, error) {
+			table, err := arg[string](a, 0)
+			if err != nil {
+				return nil, err
+			}
+			id, err := arg[string](a, 1)
+			if err != nil {
+				return nil, err
+			}
+			data, err := arg[map[string]any](a, 2)
+			if err != nil {
+				return nil, err
+			}
+			return store.Update(ctx, table, id, data)
+		},
+		"db.remove": func(ctx context.Context, a []json.RawMessage) (any, error) {
+			table, err := arg[string](a, 0)
+			if err != nil {
+				return nil, err
+			}
+			id, err := arg[string](a, 1)
+			if err != nil {
+				return nil, err
+			}
+			return store.Remove(ctx, table, id)
+		},
+	}
+}
+
+// quaCores lists each qua's capabilities. Lines marked "qu:" are where qu adds a qua.
+var quaCores = map[string]func() map[string]Capability{
+[[- range .Quas ]]
+	"[[ .Name ]]": db,
+[[- end ]]
+	// qu:qua-cores
+}
+
+// Plugged returns the capabilities of the quas plugged into a quan, by "<qua>:<name>".
+func Plugged(quas []string) map[string]Capability {
+	out := map[string]Capability{}
+	for _, qua := range quas {
+		if core, ok := quaCores[qua]; ok {
+			for name, fn := range core() {
+				out[qua+":"+name] = fn
+			}
+		}
+	}
+	return out
+}

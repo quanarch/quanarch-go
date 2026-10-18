@@ -1,0 +1,10 @@
+// Package api holds thin calls: the quan says what to listen to, the quanar's api manager listens.
+package api
+
+import [[ lower (pascal .Name) ]] "[[ .Name ]]"
+
+func Get(path string, h [[ lower (pascal .Name) ]].Handler)    { [[ lower (pascal .Name) ]].Core().Api().Get(path, h) }
+func Post(path string, h [[ lower (pascal .Name) ]].Handler)   { [[ lower (pascal .Name) ]].Core().Api().Post(path, h) }
+func Put(path string, h [[ lower (pascal .Name) ]].Handler)    { [[ lower (pascal .Name) ]].Core().Api().Put(path, h) }
+func Patch(path string, h [[ lower (pascal .Name) ]].Handler)  { [[ lower (pascal .Name) ]].Core().Api().Patch(path, h) }
+func Delete(path string, h [[ lower (pascal .Name) ]].Handler) { [[ lower (pascal .Name) ]].Core().Api().Delete(path, h) }

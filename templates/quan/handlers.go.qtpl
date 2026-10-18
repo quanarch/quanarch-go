@@ -1,0 +1,35 @@
+[[ if .Quas -]]
+package [[ lower (pascal .Name) ]]
+
+import (
+	"context"
+	"encoding/json"
+
+	[[ lower (pascal (index .Quas 0).Name) ]] "[[ (index .Quas 0).Name ]]"
+)
+
+// Handlers take a request and return a response; they only call services.
+
+func listItems(ctx context.Context, _ [[ lower (pascal (index .Quas 0).Name) ]].Request) ([[ lower (pascal (index .Quas 0).Name) ]].Response, error) {
+	rows, err := list(ctx)
+	if err != nil {
+		return [[ lower (pascal (index .Quas 0).Name) ]].Response{}, err
+	}
+	return [[ lower (pascal (index .Quas 0).Name) ]].Response{Body: rows}, nil
+}
+
+func createItem(ctx context.Context, req [[ lower (pascal (index .Quas 0).Name) ]].Request) ([[ lower (pascal (index .Quas 0).Name) ]].Response, error) {
+	// The quan's own rule: only an object can be stored.
+	var item map[string]any
+	if json.Unmarshal(req.Body, &item) != nil || item == nil {
+		return [[ lower (pascal (index .Quas 0).Name) ]].Response{Status: 400, Body: map[string]string{"error": "the body must be a JSON object"}}, nil
+	}
+	row, err := create(ctx, item)
+	if err != nil {
+		return [[ lower (pascal (index .Quas 0).Name) ]].Response{}, err
+	}
+	return [[ lower (pascal (index .Quas 0).Name) ]].Response{Status: 201, Body: row}, nil
+}
+[[- else -]]
+package [[ lower (pascal .Name) ]]
+[[- end ]]

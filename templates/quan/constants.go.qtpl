@@ -1,0 +1,10 @@
+package [[ lower (pascal .Name) ]]
+
+// Name is the quan's name.
+const Name = "[[ .Name ]]"
+
+// Home is where the quan listens; every path starts with the quan's name.
+const Home = "/[[ .Name ]]"
+
+// table is named by the quan; the quanar does not know it in advance.
+const table = "[[ snake .Name ]]"
