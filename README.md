@@ -4,9 +4,11 @@ The Go stack of [Quanarch](https://quanarch.org): the templates `qu` uses for `-
 
 ```sh
 qu new project shop --lang go --dir . --qua shop-qua --quanar shop-quanar --quan notes
+qu new examples shop --lang go --example advanced --dir .
 ```
 
-Needs qu 0.3.6 or later and Go 1.24 or later.
+Needs qu 0.3.6 or later and Go 1.24 or later; the advanced example's web client also needs
+Node.js 24 or later.
 
 ## How Quanarch works in Go
 
@@ -41,6 +43,13 @@ build and unmounts it the moment it closes.
 
 The parts are held together by the project's `go.work`. How a quan or a qua added later is
 taken in by the quanar is declared in `stack.qu`, under `on quan` and `on qua`.
+
+## Examples
+
+`examples/advanced` is a full-stack shop: a quanar server, a qua, three quans and a React client,
+in one Go workspace. Its quans declare models, permissions, apis with middlewares and validation,
+and the events they listen to, in a `Manifest`; the quanar's managers turn them into tables,
+routes and checks. Orders and stock talk only by events. See its README.
 
 ## License
 

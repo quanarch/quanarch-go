@@ -22,6 +22,9 @@ jobs:
         with:
           go-version-file: .qu/go.mod
           cache-dependency-path: .qu/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
       - name: Create a project from this stack and add a quan with a new qua
         run: go test -C .qu ./internal/create -run TestStackProject -count=1 -v
         env:
@@ -55,3 +58,10 @@ jobs:
           (cd quans/billing && go tool quan-build --watch) & sleep 6
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:3000/billing -H 'Content-Type: application/json' -d '{"text":"hi"}')" = 201
           curl -sf localhost:3000/billing | grep -q '"text":"hi"'
+      - name: Create the advanced example with qu, vet every part and build its quans
+        working-directory: ${{ runner.temp }}
+        env:
+          QU_STACK_DIR: ${{ github.workspace }}
+        run: |
+          ./qu new examples shop --lang go --example advanced --dir .
+          cd shop && go run ./tools/cmd/check && go run ./tools/cmd/build

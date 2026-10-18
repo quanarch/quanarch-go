@@ -1,0 +1,6 @@
+.quan/
+dist/
+bin/
+node_modules/
+artifacts/quans/
+quanar/data/*.db*
