@@ -5,6 +5,7 @@ title "Go"
 template project templates/project
 template qua templates/qua
 template quanar templates/quanar {
+	run gofmt -w .
 	run go mod download
 	port 3000
 	start go run .
@@ -14,6 +15,7 @@ template quan templates/quan {
 	start go tool quan-build --watch
 }
 template qmock templates/quanar {
+	run gofmt -w .
 	run go work use .
 	run go mod download
 	port 3001

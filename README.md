@@ -7,8 +7,8 @@ qu new project shop --lang go --dir . --qua shop-qua --quanar shop-quanar --quan
 qu new examples shop --lang go --example advanced --dir .
 ```
 
-Needs qu 0.3.6 or later and Go 1.24 or later; the advanced example's web client also needs
-Node.js 24 or later.
+Needs qu 0.3.6 or later and Go 1.24 or later; the advanced example needs Go 1.26 or later, and
+Node.js 24 or later for its web client.
 
 ## How Quanarch works in Go
 

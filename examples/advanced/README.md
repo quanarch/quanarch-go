@@ -18,7 +18,7 @@ shop/
 
 ## Run
 
-Requires Go 1.24 or later and Node.js 24 or later (for the web client).
+Requires Go 1.26 or later and Node.js 24 or later (for the web client).
 
 ```sh
 npm install --prefix web     # once: the web client
